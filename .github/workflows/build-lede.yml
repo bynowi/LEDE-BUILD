@@ -1,4 +1,4 @@
-name: Build Lean's LEDE
+name: Build Lean's LEDE for x86
 
 on:
   workflow_dispatch:
@@ -72,7 +72,7 @@ jobs:
         cd lede
         [ -e $DIY_P2_SH ] && ./$DIY_P2_SH
 
-    - name: 7. 生成配置并预下载依赖包 (Download Package)
+    - name: 7. 生成完整配置并预下载依赖包 (Download Package)
       id: package
       run: |
         cd lede
@@ -98,6 +98,7 @@ jobs:
       run: |
         cd lede/bin/targets/*/*
         rm -rf packages
+        rm -rf *rootfs*.tar.gz
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -115,16 +116,16 @@ jobs:
         echo "release_tag=LEDE-$(date +"\%Y.\%m.\%d-\%H\%M")" >> $GITHUB_OUTPUT
         touch release.txt
         echo "### 固件构建信息" >> release.txt
-        echo "- **源码仓库**: ${{ env.REPO_URL }}" >> release.txt
-        echo "- **源码分支**: ${{ env.REPO_BRANCH }}" >> release.txt
+        echo "- **目标架构**: x86_64 工控机 (支持 UEFI / Legacy 引导)" >> release.txt
+        echo "- **源码分支**: ${{ env.REPO_URL }} [${{ env.REPO_BRANCH }}]" >> release.txt
         echo "- **构建时间**: $(date +"%Y年%m月%d日 %H:%M:%S")" >> release.txt
-        echo "- **默认后台 IP**: 请参考 \`diy-part2.sh\` 中的修改或默认 192.168.1.1" >> release.txt
-        echo "- **默认账号**: \`root\` | **默认密码**: \`password\`" >> release.txt
+        echo "- **默认后台 IP**: \`192.168.2.1\`" >> release.txt
+        echo "- **默认账号密码**: \`root\` / \`password\`" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: 12. 自动发布至 GitHub Releases
       uses: softprops/action-gh-release@v2
-      if: steps.tag.outputs.status == 'success' && !cancelled()
+      if: steps.tag.outputs.release_tag && !cancelled()
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
