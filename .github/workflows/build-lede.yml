@@ -2,8 +2,8 @@ name: Build Lean's LEDE
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: '0 16 * * 0' # 每周日自动编译（可选）
+#   schedule:
+#     - cron: '0 19 * * 0' # 每周日自动编译（UTC 19:00 = 北京时间周一 03:00），按需开启
 
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
@@ -21,15 +21,21 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: 检出代码
+    - name: 1. 检出仓库代码
       uses: actions/checkout@v4
 
-    - name: 初始化编译环境
-      env:
-        DEBIAN_FRONTEND: noninteractive
+    - name: 2. 深度清理磁盘空间
       run: |
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
         sudo docker image prune -a -f
+        sudo swapoff -a
+        sudo rm -f /swapfile
+        df -h
+
+    - name: 3. 安装编译环境依赖与配置时区
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
         sudo -E apt-get -qq update
         sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
         bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib \
@@ -44,21 +50,29 @@ jobs:
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
 
-    - name: 克隆源码与拉取 Feeds
+    - name: 4. 克隆 LEDE 源码
       working-directory: /workdir
       run: |
         df -hT $PWD
-        git clone --depth 1 $REPO_URL -b $REPO_BRANCH lede
+        git clone --depth 1 $REPO_URL -b$REPO_BRANCH lede
         ln -sf /workdir/lede $GITHUB_WORKSPACE/lede
 
-    - name: 加载自定义配置与 Feeds
+    - name: 5. 执行 diy-part1 并更新安装 Feeds
       run: |
-        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE lede/.config
+        [ -e $DIY_P1_SH ] && chmod +x $DIY_P1_SH && cp$DIY_P1_SH lede/
         cd lede
+        [ -e $DIY_P1_SH ] && ./$DIY_P1_SH
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: 下载编译依赖包 (Download Package)
+    - name: 6. 加载配置并执行 diy-part2
+      run: |
+        [ -e $DIY_P2_SH ] && chmod +x $DIY_P2_SH && cp$DIY_P2_SH lede/
+        [ -e $CONFIG_FILE ] && cp$CONFIG_FILE lede/.config
+        cd lede
+        [ -e $DIY_P2_SH ] && ./$DIY_P2_SH
+
+    - name: 7. 生成配置并预下载依赖包 (Download Package)
       id: package
       run: |
         cd lede
@@ -67,7 +81,7 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
-    - name: 编译固件
+    - name: 8. 执行固件编译
       id: compile
       run: |
         cd lede
@@ -76,9 +90,9 @@ jobs:
         echo "status=success" >> $GITHUB_OUTPUT
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
-        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        echo "FILE_DATE=_$(date +"\%Y\%m\%d\%H\%M")" >> $GITHUB_ENV
 
-    - name: 整理打包文件
+    - name: 9. 检查并整理编译产物
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
@@ -87,23 +101,28 @@ jobs:
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: 上传固件至 GitHub Artifacts
+    - name: 10. 上传固件至 GitHub Artifacts
       uses: actions/upload-artifact@v4
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
         name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
 
-    - name: 生成 Release 标签
+    - name: 11. 生成 Release 标签与发布信息
       id: tag
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success' && !cancelled()
       run: |
-        echo "release_tag=LEDE-$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
+        echo "release_tag=LEDE-$(date +"\%Y.\%m.\%d-\%H\%M")" >> $GITHUB_OUTPUT
         touch release.txt
-        echo "LEDE 基于 coolsnowwolf/lede 源码构建" >> release.txt
+        echo "### 固件构建信息" >> release.txt
+        echo "- **源码仓库**: ${{ env.REPO_URL }}" >> release.txt
+        echo "- **源码分支**: ${{ env.REPO_BRANCH }}" >> release.txt
+        echo "- **构建时间**: $(date +"%Y年%m月%d日 %H:%M:%S")" >> release.txt
+        echo "- **默认后台 IP**: 请参考 \`diy-part2.sh\` 中的修改或默认 192.168.1.1" >> release.txt
+        echo "- **默认账号**: \`root\` | **默认密码**: \`password\`" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: 发布到 GitHub Releases
+    - name: 12. 自动发布至 GitHub Releases
       uses: softprops/action-gh-release@v2
       if: steps.tag.outputs.status == 'success' && !cancelled()
       env:
