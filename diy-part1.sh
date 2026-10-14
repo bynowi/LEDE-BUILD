@@ -1,20 +1,21 @@
 #!/bin/bash
 #
-# https://github.com/P3TERX/Actions-OpenWrt
-# File name: diy-part1.sh
-# Description: OpenWrt DIY script part 1 (Before Update feeds)
-#
-# Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
+# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
 #
 # This is free software, licensed under the MIT License.
 # See /LICENSE for more information.
 #
-# Uncomment a feed source
-#sed -i 's/^#\(.*helloworld\)/\1/' feeds.conf.default
+# File name: diy-part1.sh
+# Description: OpenWrt DIY script part 1 (Before Update feeds)
+#
 
-# Add a feed source
-#echo 'src-git helloworld https://github.com/fw876/helloworld' >>feeds.conf.default
-#echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall' >>feeds.conf.default
-# 注释掉kenzo源，不再编译frp到固件内
-#echo 'src-git kenzo https://github.com/kenzok8/openwrt-packages' >>feeds.conf.default
-#echo 'src-git small https://github.com/kenzok8/small' >>feeds.conf.default
+# 1. 解开 feeds.conf.default 中的 helloworld 源（如果需要）
+# sed -i 's/^#src-git helloworld/src-git helloworld/g' feeds.conf.default
+
+# 2. 添加第三方软件源（按需取消注释）
+# 示例：添加 passwall 源
+# echo 'src-git passwall_packages https://github.com/xiaorouji/openwrt-passwall-packages.git;main' >> feeds.conf.default
+# echo 'src-git passwall https://github.com/xiaorouji/openwrt-passwall.git;main' >> feeds.conf.default
+
+# 示例：添加 openwrt-packages 源
+# echo 'src-git kenzo https://github.com/kenzok8/openwrt-packages' >> feeds.conf.default
