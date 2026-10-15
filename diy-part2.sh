@@ -13,7 +13,7 @@ sed -i 's/LEDE/MIHOME/g' package/base-files/files/bin/config_generate
 # 3. 设置默认时区为东八区
 sed -i "s/'UTC'/'CST-8'\n\t\tset system.@system[-1].zonename='Asia\/Shanghai'/g" package/base-files/files/bin/config_generate
 
-# 4. 拉取 OpenClash（Lean 官方源唯一不含的插件）
+# 4. 拉取 OpenClash（移除旧目录并克隆官方最新 master 分支）
 rm -rf feeds/luci/applications/luci-app-openclash
 git clone --depth 1 -b master https://github.com/vernesong/OpenClash.git package/luci-app-openclash
 
