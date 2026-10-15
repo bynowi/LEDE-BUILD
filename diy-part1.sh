@@ -3,7 +3,5 @@
 # OpenWrt DIY script part 1 (Before Update feeds)
 # =================================================================
 
-# 解除 helloworld 默认注释（如果需要）
+# 开启 helloworld 源（如果默认注释了）
 sed -i 's/^#src-git helloworld/src-git helloworld/g' feeds.conf.default
-
-# 注意：不要在此处引入 kenzo 和 small，会导致极其严重的包冲突！
